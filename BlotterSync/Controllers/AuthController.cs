@@ -1,11 +1,12 @@
 ﻿using BlotterSync.DTOs;
 using BlotterSync.Models;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace BlotterSync.Controllers
@@ -16,11 +17,13 @@ namespace BlotterSync.Controllers
     {
         private readonly BlotterSyncContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IPasswordHasher<Officer> _passwordHasher;
 
-        public AuthController(BlotterSyncContext context, IConfiguration configuration)
+        public AuthController(BlotterSyncContext context, IConfiguration configuration, IPasswordHasher<Officer> passwordHasher)
         {
             _context = context;
             _configuration = configuration;
+            _passwordHasher = passwordHasher;
         }
 
         [HttpPost("Login")]
@@ -28,7 +31,7 @@ namespace BlotterSync.Controllers
         {
             var user = await _context.Officers.FirstOrDefaultAsync(u => u.Username == loginDto.Username);
 
-            if (user == null || user.PasswordHash != loginDto.Password)
+            if (user == null || user.ActiveStatus == false || !await VerifyPasswordAsync(user, loginDto.Password))
             {
                 return Unauthorized("Invalid username or password.");
             }
@@ -47,7 +50,7 @@ namespace BlotterSync.Controllers
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddHours(8),
+                expires: DateTime.UtcNow.AddHours(8),
                 signingCredentials: creds
             );
 
@@ -58,13 +61,18 @@ namespace BlotterSync.Controllers
                 officerId = user.OfficerId
             });
         }
+
         [HttpPost("Register")]
         public async Task<IActionResult> Register(RegisterDTO registerDto)
         {
-            // 1. Check if the username is already taken
+            // 1. Check if the username or badge number is already taken
             if (await _context.Officers.AnyAsync(u => u.Username == registerDto.Username))
             {
                 return BadRequest("Username already exists.");
+            }
+            if (await _context.Officers.AnyAsync(u => u.BadgeNumber == registerDto.BadgeNumber))
+            {
+                return BadRequest("Badge number is already registered.");
             }
 
             // 2. Map the DTO to the database model
@@ -74,10 +82,10 @@ namespace BlotterSync.Controllers
                 FirstName = registerDto.FirstName,
                 LastName = registerDto.LastName,
                 Username = registerDto.Username,
-                PasswordHash = registerDto.Password, // In a real app, hash this!
                 Role = "Officer", // Force new accounts to be standard officers
                 ActiveStatus = true
             };
+            newOfficer.PasswordHash = _passwordHasher.HashPassword(newOfficer, registerDto.Password);
 
             // 3. Save to SQL Server
             _context.Officers.Add(newOfficer);
@@ -85,19 +93,48 @@ namespace BlotterSync.Controllers
 
             return Ok(new { message = "Registration successful. You can now log in." });
         }
-        [AllowAnonymous]
-        [HttpGet("Public")]
-        public async Task<ActionResult<IEnumerable<object>>> GetPublicBlotterData()
-        {
-            // Returns ONLY safe data for the Kiosk map and charts
-            var publicRecords = await _context.BlotterRecords
-                .Select(b => new {
-                    b.IncidentDate,
-                    b.Location,
-                    b.Status
-                }).ToListAsync();
 
-            return Ok(publicRecords);
+        // Accounts created before hashing was introduced still hold plaintext passwords.
+        // Accept those once and upgrade them to a hash on successful login.
+        private async Task<bool> VerifyPasswordAsync(Officer user, string password)
+        {
+            PasswordVerificationResult result;
+            if (IsIdentityHash(user.PasswordHash))
+            {
+                result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
+            }
+            else
+            {
+                result = IsLegacyPlaintextMatch(user.PasswordHash, password)
+                    ? PasswordVerificationResult.SuccessRehashNeeded
+                    : PasswordVerificationResult.Failed;
+            }
+
+            if (result == PasswordVerificationResult.Failed) return false;
+
+            if (result == PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                user.PasswordHash = _passwordHasher.HashPassword(user, password);
+                await _context.SaveChangesAsync();
+            }
+
+            return true;
+        }
+
+        // PasswordHasher output is base64 with a leading format marker (0x00 = v2, 0x01 = v3)
+        private static bool IsIdentityHash(string stored)
+        {
+            var buffer = new byte[stored.Length];
+            return Convert.TryFromBase64String(stored, buffer, out var length)
+                && length >= 49
+                && (buffer[0] == 0x00 || buffer[0] == 0x01);
+        }
+
+        private static bool IsLegacyPlaintextMatch(string stored, string password)
+        {
+            var storedBytes = Encoding.UTF8.GetBytes(stored);
+            var passwordBytes = Encoding.UTF8.GetBytes(password);
+            return CryptographicOperations.FixedTimeEquals(storedBytes, passwordBytes);
         }
     }
 }

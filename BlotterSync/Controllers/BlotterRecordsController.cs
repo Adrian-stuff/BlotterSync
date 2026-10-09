@@ -4,6 +4,7 @@ using BlotterSync.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using static BlotterSync.DTOs.BlotterRecordDTOs;
 
 namespace BlotterSync.Controllers
@@ -26,17 +27,12 @@ namespace BlotterSync.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<BlotterRecordDTO>>> GetBlotterRecords([FromQuery] string? searchStatus, [FromQuery] string? searchLocation)
         {
-            var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-
-            if (userIdString == null) return Unauthorized();
-
-            int userId = int.Parse(userIdString);
             var query = _context.BlotterRecords.AsQueryable();
 
             // Enforce Role Privacy
-            if (userRole != "Admin")
+            if (!IsAdmin())
             {
+                var userId = GetCurrentOfficerId();
                 query = query.Where(b => b.DeskOfficerId == userId);
             }
 
@@ -54,6 +50,34 @@ namespace BlotterSync.Controllers
             return Ok(_mapper.Map<IEnumerable<BlotterRecordDTO>>(records));
         }
 
+        // KIOSK FUNCTION: Returns ONLY safe data for the Kiosk map and charts (No login required)
+        [AllowAnonymous]
+        [HttpGet("Public")]
+        public async Task<ActionResult<IEnumerable<object>>> GetPublicBlotterData()
+        {
+            var publicRecords = await _context.BlotterRecords
+                .Select(b => new {
+                    b.IncidentDate,
+                    b.Location,
+                    b.Status
+                }).ToListAsync();
+
+            return Ok(publicRecords);
+        }
+
+        // GET: api/BlotterRecords/5
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<BlotterRecordDTO>> GetBlotterRecord(int id)
+        {
+            var record = await _context.BlotterRecords.FindAsync(id);
+            if (record == null || !CanAccess(record))
+            {
+                return NotFound();
+            }
+
+            return Ok(_mapper.Map<BlotterRecordDTO>(record));
+        }
+
         // ADMIN FUNCTION: Automated Report Formatting
         [Authorize(Roles = "Admin")] // Only Admins can export official reports
         [HttpGet("Export")]
@@ -68,12 +92,18 @@ namespace BlotterSync.Controllers
 
             foreach (var record in records)
             {
-                // Clean the narrative text so commas don't break the CSV format
-                var cleanNarrative = record.Narrative.Replace(",", ";").Replace("\n", " ");
-                builder.AppendLine($"{record.TrackingNumber},{record.IncidentDate:yyyy-MM-dd HH:mm},{record.Location},{record.Status},{cleanNarrative}");
+                builder.AppendLine(string.Join(",",
+                    CsvField(record.TrackingNumber),
+                    CsvField(record.IncidentDate.ToString("yyyy-MM-dd HH:mm")),
+                    CsvField(record.Location),
+                    CsvField(record.Status),
+                    CsvField(record.Narrative)));
             }
 
-            var csvBytes = System.Text.Encoding.UTF8.GetBytes(builder.ToString());
+            // Prefix a UTF-8 BOM so Excel detects the encoding (names may contain ñ, etc.)
+            var csvBytes = System.Text.Encoding.UTF8.GetPreamble()
+                .Concat(System.Text.Encoding.UTF8.GetBytes(builder.ToString()))
+                .ToArray();
             return File(csvBytes, "text/csv", $"Malanday_BlotterReport_{DateTime.Now:yyyyMMdd}.csv");
         }
 
@@ -81,8 +111,16 @@ namespace BlotterSync.Controllers
         [HttpPost]
         public async Task<ActionResult<BlotterRecordDTO>> CreateBlotterRecord(CreateBlotterRecordDTO createDto)
         {
+            var referenceError = await ValidateReferencesAsync(createDto);
+            if (referenceError != null)
+            {
+                return BadRequest(referenceError);
+            }
+
             var blotterRecord = _mapper.Map<BlotterRecord>(createDto);
 
+            // The filing officer is always the logged-in user, never a client-supplied ID
+            blotterRecord.DeskOfficerId = GetCurrentOfficerId();
             blotterRecord.TrackingNumber = $"BS-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 5).ToUpper()}";
             blotterRecord.ReportedDate = DateTime.Now;
             blotterRecord.Status = "Pending";
@@ -92,20 +130,25 @@ namespace BlotterSync.Controllers
 
             var returnDto = _mapper.Map<BlotterRecordDTO>(blotterRecord);
 
-            return CreatedAtAction(nameof(GetBlotterRecords), new { id = blotterRecord.RecordId }, returnDto);
+            return CreatedAtAction(nameof(GetBlotterRecord), new { id = blotterRecord.RecordId }, returnDto);
         }
 
         // PUT: api/BlotterRecords/5
-        [HttpPut("{id}")]
+        [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateBlotterRecord(int id, UpdateBlotterRecordDTO updateDto)
         {
             var existingRecord = await _context.BlotterRecords.FindAsync(id);
-            if (existingRecord == null)
+            if (existingRecord == null || !CanAccess(existingRecord))
             {
                 return NotFound();
             }
 
             _mapper.Map(updateDto, existingRecord);
+
+            if (existingRecord.Status == "Resolved" && existingRecord.ResolutionDate == null)
+            {
+                existingRecord.ResolutionDate = DateTime.Now;
+            }
 
             try
             {
@@ -127,11 +170,11 @@ namespace BlotterSync.Controllers
         }
 
         // DELETE: api/BlotterRecords/5
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> DeleteBlotterRecord(int id)
         {
             var record = await _context.BlotterRecords.FindAsync(id);
-            if (record == null)
+            if (record == null || !CanAccess(record))
             {
                 return NotFound();
             }
@@ -145,6 +188,35 @@ namespace BlotterSync.Controllers
         private bool BlotterRecordExists(int id)
         {
             return _context.BlotterRecords.Any(e => e.RecordId == id);
+        }
+
+        private bool IsAdmin() => User.IsInRole("Admin");
+
+        private int GetCurrentOfficerId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        // Officers may only touch records they filed; Admins may touch all of them
+        private bool CanAccess(BlotterRecord record) => IsAdmin() || record.DeskOfficerId == GetCurrentOfficerId();
+
+        private async Task<string?> ValidateReferencesAsync(CreateBlotterRecordDTO dto)
+        {
+            if (!await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId))
+                return "Unknown incident category.";
+            if (dto.ComplainantId != null && !await _context.Residents.AnyAsync(r => r.ResidentId == dto.ComplainantId))
+                return "Complainant not found.";
+            if (dto.RespondentId != null && !await _context.Residents.AnyAsync(r => r.ResidentId == dto.RespondentId))
+                return "Respondent not found.";
+            return null;
+        }
+
+        // RFC 4180 quoting, plus a leading apostrophe on values that spreadsheets would run as formulas
+        private static string CsvField(string? value)
+        {
+            value ??= string.Empty;
+            if (value.Length > 0 && "=+-@\t\r".Contains(value[0]))
+            {
+                value = "'" + value;
+            }
+            return $"\"{value.Replace("\"", "\"\"")}\"";
         }
     }
 }

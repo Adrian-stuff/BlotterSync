@@ -1,4 +1,6 @@
-﻿namespace BlotterSync.DTOs
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace BlotterSync.DTOs
 {
     public class BlotterRecordDTOs
     {
@@ -17,18 +19,23 @@
 
         public class CreateBlotterRecordDTO
         {
+            [Range(1, int.MaxValue)]
             public int CategoryId { get; set; }
-            public int DeskOfficerId { get; set; }
             public int? ComplainantId { get; set; }
             public int? RespondentId { get; set; }
             public DateTime IncidentDate { get; set; }
+            [Required, StringLength(255)]
             public string Location { get; set; } = null!;
+            [Required]
             public string Narrative { get; set; } = null!;
         }
 
         public class UpdateBlotterRecordDTO
         {
+            [Required]
             public string Narrative { get; set; } = null!;
+            [Required, RegularExpression("^(Pending|Ongoing|Resolved|Dismissed)$",
+                ErrorMessage = "Status must be Pending, Ongoing, Resolved or Dismissed.")]
             public string Status { get; set; } = null!;
             public DateTime? ResolutionDate { get; set; }
         }

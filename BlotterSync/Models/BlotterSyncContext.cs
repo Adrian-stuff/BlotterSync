@@ -28,8 +28,15 @@ public partial class BlotterSyncContext : DbContext
     public virtual DbSet<Resident> Residents { get; set; }
     public DbSet<Announcement> Announcements { get; set; }
 
+    // Only used when the context is created without DI (e.g. design-time tooling);
+    // otherwise the connection string comes from appsettings via Program.cs
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=BlotterSyncDB;Trusted_Connection=True;TrustServerCertificate=True;");
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=BlotterSyncDB;Trusted_Connection=True;TrustServerCertificate=True;");
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

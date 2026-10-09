@@ -12,6 +12,7 @@
             --accent: #2563eb;
             --success: #16a34a;
             --warning: #eab308;
+            --danger: #dc2626;
             --bg-main: #f8fafc;
             --text-dark: #0f172a;
             --text-light: #f8fafc;
@@ -68,6 +69,7 @@
         .badge { padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
         .badge-pending { background: #fef08a; color: #854d0e; }
         .badge-resolved { background: #bbf7d0; color: #166534; }
+        .badge-other { background: #e2e8f0; color: #334155; }
 
         /* Map Placeholder */
         .map-container { width: 100%; height: 400px; background-color: #e2e8f0; border-radius: 8px; display: flex; justify-content: center; align-items: center; color: #64748b; font-size: 1.2rem; flex-direction: column; gap: 10px;}
@@ -211,8 +213,8 @@
                             <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;"><i class="fa-solid fa-circle-exclamation" style="color: var(--warning); margin-right: 10px;"></i> <strong>New Incident Encoded:</strong> Theft reported at Zone 1 (Just now)</li>
                             <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;"><i class="fa-solid fa-check-circle" style="color: var(--success); margin-right: 10px;"></i> <strong>Case Resolved:</strong> Tracking No. BS-20261009-ABC has been closed. (2 hrs ago)</li>
                             <li style="padding: 15px;"><i class="fa-solid fa-server" style="color: var(--accent); margin-right: 10px;"></i> <strong>System Alert:</strong> Weekly automated backup completed successfully. (1 day ago)</li>
-                            <button onclick="broadcastAnnouncement()">Post Announcement</button>
                         </ul>
+                        <button class="btn-primary" style="margin-top: 15px;" onclick="broadcastAnnouncement()">Post Announcement</button>
                     </div>
                 </div>
             </div>
@@ -254,19 +256,6 @@
                         <input type="text" id="location" class="form-control" placeholder="e.g., Zone 1" required>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Incident Narrative</label>
-                    <div class="form-row">
-                    <div class="form-group">
-                        <label>Incident Date (When)</label>
-                        <input type="datetime-local" id="incidentDate" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Location (Where)</label>
-                        <input type="text" id="location" class="form-control" placeholder="e.g., Zone 1" required>
-                    </div>
-                </div>
-                
                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
                 <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px; font-weight: bold;">INCIDENT NARRATIVE (5 Ws & 1 H)</p>
 
@@ -296,7 +285,16 @@
             window.location.href = 'index.html';
         }
 
-        document.getElementById('welcomeMsg').innerHTML = `<i class="fa-solid fa-user-shield"></i> Active ${role}`;
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        document.getElementById('welcomeMsg').innerHTML = `<i class="fa-solid fa-user-shield"></i> Active ${escapeHtml(role)}`;
 
         // View Switching Logic
         function switchView(viewId, element) {
@@ -309,13 +307,6 @@
             element.classList.add('active');
         }
 
-        function getOfficerIdFromToken() {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                return parseInt(payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier']);
-            } catch (e) { return 1; }
-        }
-
         async function loadRecords() {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/BlotterRecords`, {
@@ -325,7 +316,7 @@
                 if (response.ok) {
                     const records = await response.json();
                     const tableBody = document.getElementById('recordsTableBody');
-                    tableBody.innerHTML = ''; 
+                    let rowsHtml = '';
                     
                     let pendingCount = 0;
                     let resolvedCount = 0;
@@ -335,18 +326,22 @@
                         if(record.status === "Resolved") resolvedCount++;
 
                         const dateObj = new Date(record.incidentDate);
-                        const statusBadgeClass = record.status === "Pending" ? "badge-pending" : "badge-resolved";
+                        let statusBadgeClass = "badge badge-other";
+                        if (record.status === "Pending") statusBadgeClass = "badge badge-pending";
+                        else if (record.status === "Resolved") statusBadgeClass = "badge badge-resolved";
 
-                        tableBody.innerHTML += `
+                        rowsHtml += `
                             <tr>
-                                <td><strong>${record.trackingNumber}</strong></td>
+                                <td><strong>${escapeHtml(record.trackingNumber)}</strong></td>
                                 <td>${dateObj.toLocaleDateString()} ${dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                                <td>${record.location}</td>
-                                <td><span class="badge ${statusBadgeClass}">${record.status}</span></td>
-                                <td>${record.narrative}</td>
+                                <td>${escapeHtml(record.location)}</td>
+                                <td><span class="${statusBadgeClass}">${escapeHtml(record.status)}</span></td>
+                                <td style="white-space: pre-line;">${escapeHtml(record.narrative)}</td>
                             </tr>
                         `;
                     });
+
+                    tableBody.innerHTML = rowsHtml;
 
                     document.getElementById('totalCases').innerText = records.length;
                     document.getElementById('pendingCases').innerText = pendingCount;
@@ -370,10 +365,11 @@
             
             const structuredNarrative = `WHAT: ${whatText} \nWHY: ${whyText} \nHOW: ${howText}`;
 
+            const complainantId = parseInt(document.getElementById('complainantId').value);
+
             const payload = {
                 categoryId: parseInt(document.getElementById('categoryId').value),
-                deskOfficerId: getOfficerIdFromToken(), // The 'Who' (Filer)
-                complainantId: parseInt(document.getElementById('complainantId').value), // The 'Who' (Victim)
+                complainantId: Number.isNaN(complainantId) ? null : complainantId, // The 'Who' (Victim)
                 respondentId: null, 
                 incidentDate: document.getElementById('incidentDate').value, // The 'When'
                 location: document.getElementById('location').value, // The 'Where'
@@ -395,8 +391,11 @@
                     loadRecords(); 
                     document.getElementById('createBlotterForm').reset();
                     alert("Blotter encoded successfully.");
+                } else if (response.status === 401) {
+                    logout();
                 } else {
-                    alert("Failed to save record.");
+                    const errText = await response.text();
+                    alert(errText || "Failed to save record.");
                 }
             } catch (error) {
                 alert("API Connection Error");
@@ -415,26 +414,66 @@
             localStorage.clear();
             window.location.href = 'index.html';
         }
-v
+
         loadRecords();
 
         async function exportToCSV() {
-            // Trigger the C# backend to build and download the file
-            window.location.href = `${API_BASE_URL}/api/BlotterRecords/Export`;
+            // Fetch with the JWT (a plain navigation would not send the Authorization header)
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/BlotterRecords/Export`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    let filename = 'BlotterReport.csv';
+                    const disposition = response.headers.get('Content-Disposition');
+                    if (disposition) {
+                        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+                        if (match) filename = decodeURIComponent(match[1]);
+                    }
+
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } else if (response.status === 403) {
+                    alert("Only administrators can export reports.");
+                } else {
+                    alert("Export failed.");
+                }
+            } catch (error) {
+                alert("Export failed.");
+            }
         }
 
         async function broadcastAnnouncement() {
             const msg = prompt("Enter the Community Announcement to display on the Kiosk:");
-            if (msg) {
-                await fetch(`${API_BASE_URL}/api/Announcements`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(msg)
-                });
-                alert("Announcement successfully saved to database and broadcasted!");
+            if (msg && msg.trim()) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/Announcements`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(msg)
+                    });
+
+                    if (response.ok) {
+                        alert("Announcement successfully saved to database and broadcasted!");
+                    } else if (response.status === 401) {
+                        logout();
+                    } else {
+                        alert("Failed to broadcast announcement.");
+                    }
+                } catch (error) {
+                    alert("API Connection Error");
+                }
             }
         }
 
