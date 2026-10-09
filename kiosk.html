@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barangay Malanday | Public Safety Kiosk</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Required for Trend Charts -->
+    <style>
+        :root { --bg: #f8fafc; --primary: #0f172a; --accent: #dc2626; --card: #ffffff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--primary); }
+        .header { background: var(--primary); color: white; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 2rem; }
+        
+        /* Grid Layout for Kiosk Screen */
+        .kiosk-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .card { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .card h2 { margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+        
+        /* Announcements Ticker */
+        .announcement-box { background: #fee2e2; border-left: 5px solid var(--accent); padding: 15px; border-radius: 5px; margin-bottom: 20px; font-weight: bold; font-size: 1.1rem; }
+        .time-stamp { font-size: 0.8rem; color: #64748b; display: block; margin-top: 5px; font-weight: normal; }
+
+        /* Hotlines Directory */
+        .hotline-list { list-style: none; padding: 0; margin: 0; }
+        .hotline-list li { padding: 15px; border-bottom: 1px solid #e2e8f0; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; }
+        .hotline-list li:last-child { border: none; }
+        .phone-num { font-weight: bold; color: var(--accent); font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1><i class="fa-solid fa-shield-halved"></i> Barangay Malanday Public Safety Kiosk</h1>
+        <p>Interactive Crime Analytics & Community Updates</p>
+    </div>
+
+    <!-- Active Community Announcement -->
+    <div class="announcement-box" id="announcementDisplay">
+        <i class="fa-solid fa-bullhorn"></i> <span>Loading official announcements...</span>
+    </div>
+
+    <div class="kiosk-grid">
+        <!-- Left Column: Map & Analytics -->
+        <div class="left-col">
+            <div class="card" style="margin-bottom: 20px;">
+                <h2><i class="fa-solid fa-map-location-dot"></i> Interactive Crime Map (Live)</h2>
+                <div style="height: 300px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                    <p style="color: #64748b; font-size: 1.2rem;"><i class="fa-solid fa-location-dot"></i> Spatial Analytics Map loads here...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fa-solid fa-chart-line"></i> Incident Trend Charts</h2>
+                <canvas id="trendChart" height="100"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Column: Hotlines -->
+        <div class="right-col">
+            <div class="card" style="height: 100%;">
+                <h2><i class="fa-solid fa-phone-volume"></i> Emergency Hotlines</h2>
+                <ul class="hotline-list">
+                    <li><span><i class="fa-solid fa-fire"></i> BFP Valenzuela</span> <span class="phone-num">8292-1111</span></li>
+                    <li><span><i class="fa-solid fa-truck-medical"></i> Rescue / Ambulance</span> <span class="phone-num">8352-2000</span></li>
+                    <li><span><i class="fa-solid fa-building-shield"></i> Valenzuela Police</span> <span class="phone-num">8292-3548</span></li>
+                    <li><span><i class="fa-solid fa-users"></i> Barangay Hall</span> <span class="phone-num">8294-0000</span></li>
+                    <li><span><i class="fa-solid fa-bolt"></i> MERALCO</span> <span class="phone-num">16211</span></li>
+                    <li><span><i class="fa-solid fa-droplet"></i> Maynilad Water</span> <span class="phone-num">1626</span></li>
+                </ul>
+                <p style="margin-top: 20px; font-size: 0.9rem; color: #64748b; text-align: center;">Tap numbers on mobile to dial instantly.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5180';
+
+        // 1. Sync Community Announcements from Admin Dashboard
+        async function loadAnnouncements() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/Announcements/Active`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('announcementDisplay').innerHTML = `
+                        <i class="fa-solid fa-bullhorn"></i> ${data.message} 
+                        <span class="time-stamp">Posted: ${new Date(data.datePosted).toLocaleString()}</span>
+                    `;
+                }
+            } catch (e) { console.error(e); }
+        }
+        
+        // Refresh announcements every 5 seconds without reloading the page
+        setInterval(loadAnnouncements, 5000);
+        loadAnnouncements();
+
+        // 2. Fetch Public Data and Draw Trend Chart
+        async function loadPublicAnalytics() {
+            try {
+                // Calls the public endpoint (no token required)
+                const response = await fetch(`${API_BASE_URL}/api/BlotterRecords/Public`);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Simple logic to count incidents per status for the chart
+                    let pendingCount = data.filter(d => d.status === "Pending").length;
+                    let resolvedCount = data.filter(d => d.status === "Resolved").length;
+
+                    // Draw Chart.js Bar Chart
+                    const ctx = document.getElementById('trendChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Pending Cases', 'Resolved Cases'],
+                            datasets: [{
+                                label: 'Neighborhood Safety Statistics',
+                                data: [pendingCount, resolvedCount],
+                                backgroundColor: ['#eab308', '#16a34a'],
+                                borderRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Could not fetch public analytics:", error);
+            }
+        }
+
+        loadPublicAnalytics();
+    </script>
+</body>
+</html>
