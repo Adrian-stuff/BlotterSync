@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,24 +34,46 @@ public partial class BlotterSyncContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=BlotterSyncDB;Trusted_Connection=True;TrustServerCertificate=True;");
+            var envConn = Environment.GetEnvironmentVariable("DATABASE_URL");
+            if (!string.IsNullOrEmpty(envConn))
+            {
+                optionsBuilder.UseNpgsql(envConn);
+            }
+            else
+            {
+                optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=BlotterSyncDB;Trusted_Connection=True;TrustServerCertificate=True;");
+            }
         }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var isPostgreSql = Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+
         modelBuilder.Entity<BlotterRecord>(entity =>
         {
             entity.HasKey(e => e.RecordId).HasName("PK__BlotterR__FBDF78E9C14F26A9");
 
             entity.HasIndex(e => e.TrackingNumber, "UQ__BlotterR__784DB3D9D658DE32").IsUnique();
 
-            entity.Property(e => e.IncidentDate).HasColumnType("datetime");
+            if (isPostgreSql)
+            {
+                entity.Property(e => e.IncidentDate).HasColumnType("timestamp without time zone");
+                entity.Property(e => e.ReportedDate)
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                    .HasColumnType("timestamp without time zone");
+                entity.Property(e => e.ResolutionDate).HasColumnType("timestamp without time zone");
+            }
+            else
+            {
+                entity.Property(e => e.IncidentDate).HasColumnType("datetime");
+                entity.Property(e => e.ReportedDate)
+                    .HasDefaultValueSql("(getdate())")
+                    .HasColumnType("datetime");
+                entity.Property(e => e.ResolutionDate).HasColumnType("datetime");
+            }
+
             entity.Property(e => e.Location).HasMaxLength(255);
-            entity.Property(e => e.ReportedDate)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.ResolutionDate).HasColumnType("datetime");
             entity.Property(e => e.Status).HasMaxLength(50);
             entity.Property(e => e.TrackingNumber).HasMaxLength(50);
 
@@ -136,6 +158,14 @@ public partial class BlotterSyncContext : DbContext
             entity.Property(e => e.FirstName).HasMaxLength(100);
             entity.Property(e => e.LastName).HasMaxLength(100);
         });
+
+        if (isPostgreSql)
+        {
+            modelBuilder.Entity<Announcement>(entity =>
+            {
+                entity.Property(e => e.DatePosted).HasColumnType("timestamp without time zone");
+            });
+        }
 
         OnModelCreatingPartial(modelBuilder);
     }
