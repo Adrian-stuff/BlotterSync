@@ -1,6 +1,21 @@
 @BlotterSync_HostAddress = http://localhost:5180
 
-GET {{BlotterSync_HostAddress}}/weatherforecast/
+POST {{BlotterSync_HostAddress}}/api/Auth/Login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "changeme"
+}
+
+###
+
+GET {{BlotterSync_HostAddress}}/api/BlotterRecords/Public
+Accept: application/json
+
+###
+
+GET {{BlotterSync_HostAddress}}/api/Announcements/Active
 Accept: application/json
 
 ###

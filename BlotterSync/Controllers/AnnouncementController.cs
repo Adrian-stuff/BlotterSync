@@ -10,6 +10,8 @@ namespace BlotterSync.Controllers
     [ApiController]
     public class AnnouncementsController : ControllerBase
     {
+        private const int MaxMessageLength = 500;
+
         private readonly BlotterSyncContext _context;
 
         public AnnouncementsController(BlotterSyncContext context)
@@ -36,6 +38,16 @@ namespace BlotterSync.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateAnnouncement([FromBody] string message)
         {
+            message = message?.Trim() ?? string.Empty;
+            if (message.Length == 0)
+            {
+                return BadRequest("Announcement message cannot be empty.");
+            }
+            if (message.Length > MaxMessageLength)
+            {
+                return BadRequest($"Announcement message cannot exceed {MaxMessageLength} characters.");
+            }
+
             var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             // Deactivate old announcements
