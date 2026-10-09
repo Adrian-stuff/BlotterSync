@@ -1,0 +1,6 @@
+@BlotterSync_HostAddress = http://localhost:5180
+
+GET {{BlotterSync_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
