@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlotterSync | Administrator Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
         :root {
             --primary: #1e293b;
@@ -238,7 +239,18 @@
                     <div class="form-group">
                         <label>Incident Category</label>
                         <select id="categoryId" class="form-control" required>
-                            <option value="1">Theft</option>
+                            <option value="1">Theft / Robbery</option>
+                            <option value="2">Physical Injury / Assault</option>
+                            <option value="3">Domestic Dispute</option>
+                            <option value="4">Vandalism / Property Damage</option>
+                            <option value="5">Disturbance of Peace / Noise</option>
+                            <option value="6">Harassment</option>
+                            <option value="7">Trespassing</option>
+                            <option value="8">Fraud / Estafa</option>
+                            <option value="9">Lost and Found</option>
+                            <option value="10">Boundary Dispute</option>
+                            <option value="17">Cyberbullying / Online Threats</option>
+                            <option value="11">Other / Miscellaneous</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -307,6 +319,23 @@
             element.classList.add('active');
         }
 
+        async function loadCategories() {
+            const select = document.getElementById('categoryId');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/Categories`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        select.innerHTML = data.map(c => 
+                            `<option value="${c.categoryId}">${escapeHtml(c.name)}</option>`
+                        ).join('');
+                    }
+                }
+            } catch (err) {
+                console.warn("Could not load dynamic categories, fallback options remain active.", err);
+            }
+        }
+
         async function loadRecords() {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/BlotterRecords`, {
@@ -315,6 +344,7 @@
 
                 if (response.ok) {
                     const records = await response.json();
+                    currentRecords = records;
                     const tableBody = document.getElementById('recordsTableBody');
                     let rowsHtml = '';
                     
@@ -416,6 +446,7 @@
         }
 
         loadRecords();
+        loadCategories();
 
         async function exportToCSV() {
             // Fetch with the JWT (a plain navigation would not send the Authorization header)

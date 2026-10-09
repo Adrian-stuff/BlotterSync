@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barangay Malanday | Public Safety Kiosk</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script> <!-- Required for Trend Charts -->
     <style>
         :root { --bg: #f8fafc; --primary: #0f172a; --accent: #dc2626; --card: #ffffff; }
@@ -114,23 +115,26 @@
                     let resolvedCount = data.filter(d => d.status === "Resolved").length;
 
                     // Draw Chart.js Bar Chart
-                    const ctx = document.getElementById('trendChart').getContext('2d');
-                    new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: ['Pending Cases', 'Resolved Cases'],
-                            datasets: [{
-                                label: 'Neighborhood Safety Statistics',
-                                data: [pendingCount, resolvedCount],
-                                backgroundColor: ['#eab308', '#16a34a'],
-                                borderRadius: 5
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-                        }
-                    });
+                    const chartCanvas = document.getElementById('trendChart');
+                    if (chartCanvas) {
+                        const ctx = chartCanvas.getContext('2d');
+                        new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: ['Pending Cases', 'Resolved Cases'],
+                                datasets: [{
+                                    label: 'Neighborhood Safety Statistics',
+                                    data: [pendingCount, resolvedCount],
+                                    backgroundColor: ['#eab308', '#16a34a'],
+                                    borderRadius: 5
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                            }
+                        });
+                    }
                 }
             } catch (error) {
                 console.error("Could not fetch public analytics:", error);
