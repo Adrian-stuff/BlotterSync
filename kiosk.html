@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barangay Malanday | Public Safety Kiosk</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Required for Trend Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script> <!-- Required for Trend Charts -->
     <style>
         :root { --bg: #f8fafc; --primary: #0f172a; --accent: #dc2626; --card: #ffffff; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--primary); }
@@ -82,10 +82,17 @@
                 const response = await fetch(`${API_BASE_URL}/api/Announcements/Active`);
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById('announcementDisplay').innerHTML = `
-                        <i class="fa-solid fa-bullhorn"></i> ${data.message} 
-                        <span class="time-stamp">Posted: ${new Date(data.datePosted).toLocaleString()}</span>
-                    `;
+                    const box = document.getElementById('announcementDisplay');
+                    box.innerHTML = '<i class="fa-solid fa-bullhorn"></i> ';
+
+                    const msgSpan = document.createElement('span');
+                    msgSpan.textContent = data.message;
+                    box.appendChild(msgSpan);
+
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'time-stamp';
+                    timeSpan.textContent = `Posted: ${new Date(data.datePosted).toLocaleString()}`;
+                    box.appendChild(timeSpan);
                 }
             } catch (e) { console.error(e); }
         }

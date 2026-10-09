@@ -34,7 +34,7 @@
             <input type="text" id="regFirst" placeholder="First Name" required>
             <input type="text" id="regLast" placeholder="Last Name" required>
             <input type="text" id="regUser" placeholder="Choose Username" required>
-            <input type="password" id="regPass" placeholder="Choose Password" required>
+            <input type="password" id="regPass" placeholder="Choose Password (min. 8 characters)" minlength="8" required>
             <button type="submit">Register Account</button>
         </form>
 
@@ -44,6 +44,8 @@
     </div>
 
     <script>
+        const API_BASE_URL = 'http://localhost:5180';
+
         const loginForm = document.getElementById('loginForm');
         const registerForm = document.getElementById('registerForm');
         const formTitle = document.getElementById('formTitle');
@@ -78,10 +80,11 @@
             
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
 
             try {
-                // CHANGE TO YOUR API PORT
-                const response = await fetch('http://localhost:5180/api/Auth/Login', {
+                const response = await fetch(`${API_BASE_URL}/api/Auth/Login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
@@ -99,6 +102,8 @@
             } catch (error) {
                 errorMsg.innerText = "Cannot connect to the API.";
                 errorMsg.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
             }
         });
 
@@ -115,10 +120,11 @@
                 username: document.getElementById('regUser').value,
                 password: document.getElementById('regPass').value
             };
+            const submitBtn = registerForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
 
             try {
-                // CHANGE TO YOUR API PORT
-                const response = await fetch('http://localhost:5180/api/Auth/Register', {
+                const response = await fetch(`${API_BASE_URL}/api/Auth/Register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -130,13 +136,28 @@
                     registerForm.reset();
                     toggleBtn.click(); // Switch back to login view automatically
                 } else {
-                    const errText = await response.text();
+                    let errText = '';
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('json')) {
+                        const errData = await response.json();
+                        if (errData && errData.errors) {
+                            errText = Object.values(errData.errors).flat().join(' ');
+                        } else if (typeof errData === 'string') {
+                            errText = errData;
+                        } else if (errData && errData.title) {
+                            errText = errData.title;
+                        }
+                    } else {
+                        errText = await response.text();
+                    }
                     errorMsg.innerText = errText || "Registration failed.";
                     errorMsg.style.display = 'block';
                 }
             } catch (error) {
                 errorMsg.innerText = "Cannot connect to the API.";
                 errorMsg.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
             }
         });
     </script>
