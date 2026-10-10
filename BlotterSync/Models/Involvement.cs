@@ -9,13 +9,13 @@ public partial class Involvement
 
     public int RecordId { get; set; }
 
-    public int CitizenId { get; set; }
+    public int ResidentId { get; set; }
 
     public string Role { get; set; } = null!;
 
     public string? Statement { get; set; }
 
-    public virtual Citizen Citizen { get; set; } = null!;
+    public virtual Resident Resident { get; set; } = null!;
 
     public virtual BlotterRecord Record { get; set; } = null!;
 }

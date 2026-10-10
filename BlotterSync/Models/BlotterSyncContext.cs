@@ -19,8 +19,6 @@ public partial class BlotterSyncContext : DbContext
 
     public virtual DbSet<Category> Categories { get; set; }
 
-    public virtual DbSet<Citizen> Citizens { get; set; }
-
     public virtual DbSet<Involvement> Involvements { get; set; }
 
     public virtual DbSet<Officer> Officers { get; set; }
@@ -28,8 +26,6 @@ public partial class BlotterSyncContext : DbContext
     public virtual DbSet<Resident> Residents { get; set; }
     public DbSet<Announcement> Announcements { get; set; }
 
-    // Only used when the context is created without DI (e.g. design-time tooling);
-    // otherwise the connection string comes from appsettings via Program.cs
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
@@ -119,10 +115,10 @@ public partial class BlotterSyncContext : DbContext
 
             entity.Property(e => e.Role).HasMaxLength(50);
 
-            entity.HasOne(d => d.Citizen).WithMany(p => p.Involvements)
-                .HasForeignKey(d => d.CitizenId)
+            entity.HasOne(d => d.Resident).WithMany(p => p.Involvements)
+                .HasForeignKey(d => d.ResidentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Involveme__Citiz__45F365D3");
+                .HasConstraintName("FK__Involveme__Resid__45F365D3");
 
             entity.HasOne(d => d.Record).WithMany(p => p.Involvements)
                 .HasForeignKey(d => d.RecordId)

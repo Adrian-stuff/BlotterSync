@@ -1,21 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace BlotterSync.Models;
-
-public partial class Resident
+﻿namespace BlotterSync.Models
 {
-    public int ResidentId { get; set; }
+    public class Resident
+    {
+        public int ResidentId { get; set; }
+        public string FirstName { get; set; } = null!;
+        public string LastName { get; set; } = null!;
+        public string? ContactNumber { get; set; }
+        public string Address { get; set; } = null!;
+        public string Zone { get; set; } = null!;
 
-    public string FirstName { get; set; } = null!;
+        public ICollection<BlotterRecord> BlotterRecordComplainants { get; set; } = new List<BlotterRecord>();
+        public ICollection<BlotterRecord> BlotterRecordRespondents { get; set; } = new List<BlotterRecord>();
 
-    public string LastName { get; set; } = null!;
-
-    public string Address { get; set; } = null!;
-
-    public string? ContactNumber { get; set; }
-
-    public virtual ICollection<BlotterRecord> BlotterRecordComplainants { get; set; } = new List<BlotterRecord>();
-
-    public virtual ICollection<BlotterRecord> BlotterRecordRespondents { get; set; } = new List<BlotterRecord>();
+        public ICollection<Involvement> Involvements { get; set; } = new List<Involvement>();
+    }
 }
