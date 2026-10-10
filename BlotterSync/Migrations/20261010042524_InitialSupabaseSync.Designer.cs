@@ -3,17 +3,17 @@ using System;
 using BlotterSync.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
 namespace BlotterSync.Migrations
 {
     [DbContext(typeof(BlotterSyncContext))]
-    [Migration("20261009035853_AddAnnouncements")]
-    partial class AddAnnouncements
+    [Migration("20261010042524_InitialSupabaseSync")]
+    partial class InitialSupabaseSync
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -21,30 +21,30 @@ namespace BlotterSync.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "8.0.10")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("BlotterSync.Models.Announcement", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("DatePosted")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.Property<int>("PostedByOfficerId")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -55,51 +55,51 @@ namespace BlotterSync.Migrations
                 {
                     b.Property<int>("RecordId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RecordId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RecordId"));
 
                     b.Property<int>("CategoryId")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<int?>("ComplainantId")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<int>("DeskOfficerId")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("IncidentDate")
-                        .HasColumnType("datetime");
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("Narrative")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ReportedDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasDefaultValueSql("(getdate())");
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<DateTime?>("ResolutionDate")
-                        .HasColumnType("datetime");
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<int?>("RespondentId")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("TrackingNumber")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("character varying(50)");
 
                     b.HasKey("RecordId")
                         .HasName("PK__BlotterR__FBDF78E9C14F26A9");
@@ -122,17 +122,17 @@ namespace BlotterSync.Migrations
                 {
                     b.Property<int>("CategoryId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CategoryId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CategoryId"));
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<int>("SeverityLevel")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.HasKey("CategoryId")
                         .HasName("PK__Categori__19093A0B064FE278");
@@ -144,56 +144,59 @@ namespace BlotterSync.Migrations
                 {
                     b.Property<int>("CitizenId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CitizenId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CitizenId"));
 
                     b.Property<string>("Address")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("ContactNumber")
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("CitizenId")
                         .HasName("PK__Citizens__6E49FA0C8F1A3E91");
 
-                    b.ToTable("Citizens");
+                    b.ToTable("Citizen");
                 });
 
             modelBuilder.Entity("BlotterSync.Models.Involvement", b =>
                 {
                     b.Property<int>("InvolvementId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InvolvementId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("InvolvementId"));
 
-                    b.Property<int>("CitizenId")
-                        .HasColumnType("int");
+                    b.Property<int?>("CitizenId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("RecordId")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ResidentId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Statement")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.HasKey("InvolvementId")
                         .HasName("PK__Involvem__A7B85E33D5021004");
@@ -202,6 +205,8 @@ namespace BlotterSync.Migrations
 
                     b.HasIndex("RecordId");
 
+                    b.HasIndex("ResidentId");
+
                     b.ToTable("Involvements");
                 });
 
@@ -209,46 +214,46 @@ namespace BlotterSync.Migrations
                 {
                     b.Property<int>("OfficerId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("OfficerId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("OfficerId"));
 
                     b.Property<bool?>("ActiveStatus")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
                     b.Property<string>("BadgeNumber")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("Role")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
+                        .HasColumnType("character varying(20)")
                         .HasDefaultValue("Officer");
 
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("character varying(50)");
 
                     b.HasKey("OfficerId")
                         .HasName("PK__Officers__2E65577A9E7C9A2C");
@@ -266,28 +271,32 @@ namespace BlotterSync.Migrations
                 {
                     b.Property<int>("ResidentId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ResidentId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ResidentId"));
 
                     b.Property<string>("Address")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("ContactNumber")
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Zone")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("ResidentId")
                         .HasName("PK__Resident__07FB00DC9C87A8DE");
@@ -330,11 +339,9 @@ namespace BlotterSync.Migrations
 
             modelBuilder.Entity("BlotterSync.Models.Involvement", b =>
                 {
-                    b.HasOne("BlotterSync.Models.Citizen", "Citizen")
+                    b.HasOne("BlotterSync.Models.Citizen", null)
                         .WithMany("Involvements")
-                        .HasForeignKey("CitizenId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Involveme__Citiz__45F365D3");
+                        .HasForeignKey("CitizenId");
 
                     b.HasOne("BlotterSync.Models.BlotterRecord", "Record")
                         .WithMany("Involvements")
@@ -342,9 +349,15 @@ namespace BlotterSync.Migrations
                         .IsRequired()
                         .HasConstraintName("FK__Involveme__Recor__44FF419A");
 
-                    b.Navigation("Citizen");
+                    b.HasOne("BlotterSync.Models.Resident", "Resident")
+                        .WithMany("Involvements")
+                        .HasForeignKey("ResidentId")
+                        .IsRequired()
+                        .HasConstraintName("FK__Involveme__Resid__45F365D3");
 
                     b.Navigation("Record");
+
+                    b.Navigation("Resident");
                 });
 
             modelBuilder.Entity("BlotterSync.Models.BlotterRecord", b =>
@@ -372,6 +385,8 @@ namespace BlotterSync.Migrations
                     b.Navigation("BlotterRecordComplainants");
 
                     b.Navigation("BlotterRecordRespondents");
+
+                    b.Navigation("Involvements");
                 });
 #pragma warning restore 612, 618
         }
