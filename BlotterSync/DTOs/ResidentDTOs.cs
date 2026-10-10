@@ -11,6 +11,7 @@ namespace BlotterSync.DTOs
             public string LastName { get; set; } = null!;
             public string? ContactNumber { get; set; }
             public string Address { get; set; } = null!;
+            public string Zone { get; set; } = null!; // Added Zone
         }
 
         public class CreateResidentDTO
@@ -29,6 +30,10 @@ namespace BlotterSync.DTOs
             [Required]
             [StringLength(255)]
             public string Address { get; set; } = null!;
+
+            [Required]
+            [StringLength(50)]
+            public string Zone { get; set; } = null!; // Added Zone
         }
     }
 }

@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BlotterSync.Migrations
 {
     [DbContext(typeof(BlotterSyncContext))]
-    [Migration("20261010043537_RemoveCitizensTable")]
-    partial class RemoveCitizensTable
+    [Migration("20261010054746_InitialSupabaseSync")]
+    partial class InitialSupabaseSync
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -138,76 +138,6 @@ namespace BlotterSync.Migrations
                         .HasName("PK__Categori__19093A0B064FE278");
 
                     b.ToTable("Categories");
-                });
-
-            modelBuilder.Entity("BlotterSync.Models.Citizen", b =>
-                {
-                    b.Property<int>("CitizenId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CitizenId"));
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<string>("ContactNumber")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("CitizenId")
-                        .HasName("PK__Citizens__6E49FA0C8F1A3E91");
-
-                    b.ToTable("Citizen");
-                });
-
-            modelBuilder.Entity("BlotterSync.Models.Involvement", b =>
-                {
-                    b.Property<int>("InvolvementId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("InvolvementId"));
-
-                    b.Property<int?>("CitizenId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RecordId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ResidentId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Statement")
-                        .HasColumnType("text");
-
-                    b.HasKey("InvolvementId")
-                        .HasName("PK__Involvem__A7B85E33D5021004");
-
-                    b.HasIndex("CitizenId");
-
-                    b.HasIndex("RecordId");
-
-                    b.HasIndex("ResidentId");
-
-                    b.ToTable("Involvements");
                 });
 
             modelBuilder.Entity("BlotterSync.Models.Officer", b =>
@@ -337,42 +267,9 @@ namespace BlotterSync.Migrations
                     b.Navigation("Respondent");
                 });
 
-            modelBuilder.Entity("BlotterSync.Models.Involvement", b =>
-                {
-                    b.HasOne("BlotterSync.Models.Citizen", null)
-                        .WithMany("Involvements")
-                        .HasForeignKey("CitizenId");
-
-                    b.HasOne("BlotterSync.Models.BlotterRecord", "Record")
-                        .WithMany("Involvements")
-                        .HasForeignKey("RecordId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Involveme__Recor__44FF419A");
-
-                    b.HasOne("BlotterSync.Models.Resident", "Resident")
-                        .WithMany("Involvements")
-                        .HasForeignKey("ResidentId")
-                        .IsRequired()
-                        .HasConstraintName("FK__Involveme__Resid__45F365D3");
-
-                    b.Navigation("Record");
-
-                    b.Navigation("Resident");
-                });
-
-            modelBuilder.Entity("BlotterSync.Models.BlotterRecord", b =>
-                {
-                    b.Navigation("Involvements");
-                });
-
             modelBuilder.Entity("BlotterSync.Models.Category", b =>
                 {
                     b.Navigation("BlotterRecords");
-                });
-
-            modelBuilder.Entity("BlotterSync.Models.Citizen", b =>
-                {
-                    b.Navigation("Involvements");
                 });
 
             modelBuilder.Entity("BlotterSync.Models.Officer", b =>
@@ -385,8 +282,6 @@ namespace BlotterSync.Migrations
                     b.Navigation("BlotterRecordComplainants");
 
                     b.Navigation("BlotterRecordRespondents");
-
-                    b.Navigation("Involvements");
                 });
 #pragma warning restore 612, 618
         }

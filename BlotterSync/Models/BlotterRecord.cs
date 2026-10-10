@@ -35,7 +35,5 @@ public partial class BlotterRecord
 
     public virtual Officer DeskOfficer { get; set; } = null!;
 
-    public virtual ICollection<Involvement> Involvements { get; set; } = new List<Involvement>();
-
     public virtual Resident? Respondent { get; set; }
 }

@@ -19,8 +19,6 @@ public partial class BlotterSyncContext : DbContext
 
     public virtual DbSet<Category> Categories { get; set; }
 
-    public virtual DbSet<Involvement> Involvements { get; set; }
-
     public virtual DbSet<Officer> Officers { get; set; }
 
     public virtual DbSet<Resident> Residents { get; set; }
@@ -97,33 +95,6 @@ public partial class BlotterSyncContext : DbContext
             entity.HasKey(e => e.CategoryId).HasName("PK__Categori__19093A0B064FE278");
 
             entity.Property(e => e.Name).HasMaxLength(100);
-        });
-
-        modelBuilder.Entity<Citizen>(entity =>
-        {
-            entity.HasKey(e => e.CitizenId).HasName("PK__Citizens__6E49FA0C8F1A3E91");
-
-            entity.Property(e => e.Address).HasMaxLength(255);
-            entity.Property(e => e.ContactNumber).HasMaxLength(20);
-            entity.Property(e => e.FirstName).HasMaxLength(100);
-            entity.Property(e => e.LastName).HasMaxLength(100);
-        });
-
-        modelBuilder.Entity<Involvement>(entity =>
-        {
-            entity.HasKey(e => e.InvolvementId).HasName("PK__Involvem__A7B85E33D5021004");
-
-            entity.Property(e => e.Role).HasMaxLength(50);
-
-            entity.HasOne(d => d.Resident).WithMany(p => p.Involvements)
-                .HasForeignKey(d => d.ResidentId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Involveme__Resid__45F365D3");
-
-            entity.HasOne(d => d.Record).WithMany(p => p.Involvements)
-                .HasForeignKey(d => d.RecordId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Involveme__Recor__44FF419A");
         });
 
         modelBuilder.Entity<Officer>(entity =>

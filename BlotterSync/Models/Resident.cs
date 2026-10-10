@@ -11,7 +11,5 @@
 
         public ICollection<BlotterRecord> BlotterRecordComplainants { get; set; } = new List<BlotterRecord>();
         public ICollection<BlotterRecord> BlotterRecordRespondents { get; set; } = new List<BlotterRecord>();
-
-        public ICollection<Involvement> Involvements { get; set; } = new List<Involvement>();
     }
 }
