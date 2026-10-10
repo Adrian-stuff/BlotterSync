@@ -16,7 +16,6 @@ namespace BlotterSync.Controllers
             _context = context;
         }
 
-        // GET: api/Categories (Public so create modal can load all categories)
         [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Category>>> GetCategories()

@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using BlotterSync.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using BlotterSync.Models;
-using System.Security.Claims;
 
 namespace BlotterSync.Controllers
 {
@@ -11,7 +11,6 @@ namespace BlotterSync.Controllers
     public class AnnouncementsController : ControllerBase
     {
         private const int MaxMessageLength = 500;
-
         private readonly BlotterSyncContext _context;
 
         public AnnouncementsController(BlotterSyncContext context)
@@ -19,7 +18,6 @@ namespace BlotterSync.Controllers
             _context = context;
         }
 
-        // KIOSK FUNCTION: Get the latest active announcement (No login required)
         [AllowAnonymous]
         [HttpGet("Active")]
         public async Task<ActionResult<Announcement>> GetActiveAnnouncement()
@@ -29,37 +27,50 @@ namespace BlotterSync.Controllers
                 .OrderByDescending(a => a.DatePosted)
                 .FirstOrDefaultAsync();
 
-            if (announcement == null) return NotFound("No active announcements.");
+            if (announcement == null)
+            {
+                return NotFound("No active announcements.");
+            }
+
             return Ok(announcement);
         }
 
-        // ADMIN FUNCTION: Post a new announcement
         [Authorize]
         [HttpPost]
         public async Task<IActionResult> CreateAnnouncement([FromBody] string message)
         {
             message = message?.Trim() ?? string.Empty;
+
             if (message.Length == 0)
             {
                 return BadRequest("Announcement message cannot be empty.");
             }
+
             if (message.Length > MaxMessageLength)
             {
                 return BadRequest($"Announcement message cannot exceed {MaxMessageLength} characters.");
             }
 
             var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdString, out var officerId))
+            {
+                return Unauthorized();
+            }
 
-            // Deactivate old announcements
-            var oldAnnouncements = await _context.Announcements.Where(a => a.IsActive).ToListAsync();
-            foreach (var old in oldAnnouncements) { old.IsActive = false; }
+            var oldAnnouncements = await _context.Announcements
+                .Where(a => a.IsActive)
+                .ToListAsync();
 
-            // Create new announcement
+            foreach (var old in oldAnnouncements)
+            {
+                old.IsActive = false;
+            }
+
             var newAnnouncement = new Announcement
             {
                 Message = message,
-                DatePosted = DateTime.Now,
-                PostedByOfficerId = int.Parse(userIdString!),
+                DatePosted = DateTime.UtcNow,
+                PostedByOfficerId = officerId,
                 IsActive = true
             };
 

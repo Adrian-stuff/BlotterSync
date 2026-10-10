@@ -28,7 +28,8 @@ namespace BlotterSync.Migrations
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(name: "Announcements");
+            migrationBuilder.DropTable(
+                name: "Announcements");
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace BlotterSync.DTOs
 {
@@ -21,11 +22,17 @@ namespace BlotterSync.DTOs
         {
             [Range(1, int.MaxValue)]
             public int CategoryId { get; set; }
+
             public int? ComplainantId { get; set; }
+
             public int? RespondentId { get; set; }
+
             public DateTime IncidentDate { get; set; }
-            [Required, StringLength(255)]
+
+            [Required]
+            [StringLength(255)]
             public string Location { get; set; } = null!;
+
             [Required]
             public string Narrative { get; set; } = null!;
         }
@@ -34,9 +41,13 @@ namespace BlotterSync.DTOs
         {
             [Required]
             public string Narrative { get; set; } = null!;
-            [Required, RegularExpression("^(Pending|Ongoing|Resolved|Dismissed)$",
+
+            [Required]
+            [RegularExpression(
+                "^(Pending|Ongoing|Resolved|Dismissed)$",
                 ErrorMessage = "Status must be Pending, Ongoing, Resolved or Dismissed.")]
             public string Status { get; set; } = null!;
+
             public DateTime? ResolutionDate { get; set; }
         }
     }

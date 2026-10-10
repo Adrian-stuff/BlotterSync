@@ -1,13 +1,13 @@
-﻿using BlotterSync.DTOs;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using BlotterSync.DTOs;
 using BlotterSync.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace BlotterSync.Controllers
 {
@@ -19,7 +19,10 @@ namespace BlotterSync.Controllers
         private readonly IConfiguration _configuration;
         private readonly IPasswordHasher<Officer> _passwordHasher;
 
-        public AuthController(BlotterSyncContext context, IConfiguration configuration, IPasswordHasher<Officer> passwordHasher)
+        public AuthController(
+            BlotterSyncContext context,
+            IConfiguration configuration,
+            IPasswordHasher<Officer> passwordHasher)
         {
             _context = context;
             _configuration = configuration;
@@ -27,11 +30,11 @@ namespace BlotterSync.Controllers
         }
 
         [HttpPost("Login")]
-        public async Task<IActionResult> Login(LoginDTO loginDto)
+        public async Task<IActionResult> Login([FromBody] LoginDTO loginDto)
         {
             var user = await _context.Officers.FirstOrDefaultAsync(u => u.Username == loginDto.Username);
 
-            if (user == null || user.ActiveStatus == false || !await VerifyPasswordAsync(user, loginDto.Password))
+            if (user == null || user.ActiveStatus != true || !await VerifyPasswordAsync(user, loginDto.Password))
             {
                 return Unauthorized("Invalid username or password.");
             }
@@ -43,7 +46,13 @@ namespace BlotterSync.Controllers
                 new Claim(ClaimTypes.Role, user.Role)
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+            var jwtKey = _configuration["Jwt:Key"];
+            if (string.IsNullOrWhiteSpace(jwtKey))
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "JWT key configuration is missing.");
+            }
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
@@ -63,42 +72,40 @@ namespace BlotterSync.Controllers
         }
 
         [HttpPost("Register")]
-        public async Task<IActionResult> Register(RegisterDTO registerDto)
+        public async Task<IActionResult> Register([FromBody] RegisterDTO registerDto)
         {
-            // 1. Check if the username or badge number is already taken
             if (await _context.Officers.AnyAsync(u => u.Username == registerDto.Username))
             {
                 return BadRequest("Username already exists.");
             }
+
             if (await _context.Officers.AnyAsync(u => u.BadgeNumber == registerDto.BadgeNumber))
             {
                 return BadRequest("Badge number is already registered.");
             }
 
-            // 2. Map the DTO to the database model
             var newOfficer = new Officer
             {
                 BadgeNumber = registerDto.BadgeNumber,
                 FirstName = registerDto.FirstName,
                 LastName = registerDto.LastName,
                 Username = registerDto.Username,
-                Role = "Officer", // Force new accounts to be standard officers
+                Role = "Officer",
                 ActiveStatus = true
             };
+
             newOfficer.PasswordHash = _passwordHasher.HashPassword(newOfficer, registerDto.Password);
 
-            // 3. Save to SQL Server
             _context.Officers.Add(newOfficer);
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Registration successful. You can now log in." });
         }
 
-        // Accounts created before hashing was introduced still hold plaintext passwords.
-        // Accept those once and upgrade them to a hash on successful login.
         private async Task<bool> VerifyPasswordAsync(Officer user, string password)
         {
             PasswordVerificationResult result;
+
             if (IsIdentityHash(user.PasswordHash))
             {
                 result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
@@ -110,7 +117,10 @@ namespace BlotterSync.Controllers
                     : PasswordVerificationResult.Failed;
             }
 
-            if (result == PasswordVerificationResult.Failed) return false;
+            if (result == PasswordVerificationResult.Failed)
+            {
+                return false;
+            }
 
             if (result == PasswordVerificationResult.SuccessRehashNeeded)
             {
@@ -121,7 +131,6 @@ namespace BlotterSync.Controllers
             return true;
         }
 
-        // PasswordHasher output is base64 with a leading format marker (0x00 = v2, 0x01 = v3)
         private static bool IsIdentityHash(string stored)
         {
             var buffer = new byte[stored.Length];
