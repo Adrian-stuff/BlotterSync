@@ -128,7 +128,7 @@ namespace BlotterSync.Controllers
 
             var returnDto = _mapper.Map<BlotterRecordDTO>(blotterRecord);
 
-            return CreatedAtAction(nameof(GetBlotterRecord), new { id = blotterRecord.BlotterRecordId }, returnDto);
+            return CreatedAtAction(nameof(GetBlotterRecord), new { id = blotterRecord.RecordId }, returnDto);
         }
 
         [HttpPut("{id:int}")]
@@ -181,7 +181,7 @@ namespace BlotterSync.Controllers
 
         private bool BlotterRecordExists(int id)
         {
-            return _context.BlotterRecords.Any(e => e.BlotterRecordId == id);
+            return _context.BlotterRecords.Any(e => e.RecordId == id);
         }
 
         private bool IsAdmin() => User.IsInRole("Admin");
