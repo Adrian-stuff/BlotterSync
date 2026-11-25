@@ -8,13 +8,13 @@ using Microsoft.EntityFrameworkCore;
 namespace BlotterSync.Controllers;
 
 [ApiController, Authorize, Route("api/agent")]
-public sealed class AgentController(AgentHarness harness, AgentStore store, OpenAiAgent model) : ControllerBase
+public sealed class AgentController(AgentHarness harness, AgentStore store, AgentModel model) : ControllerBase
 {
     private int OfficerId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet("status")]
-    public IActionResult Status() => Ok(new { mode = model.Enabled ? "openai" : "local", model = model.Enabled ? model.Model : null,
-        description = model.Enabled ? "AI connected. Drafts require your review." : "Local assistance. Connect a server API key to enable AI summaries.",
+    public IActionResult Status() => Ok(new { mode = model.Mode, model = model.Enabled ? model.Model : null,
+        description = model.Enabled ? "A model is configured. Drafts require your review." : "Local rules. Configure OpenAI or Ollama for model replies.",
         maxTurns = 4, timeoutSeconds = 60 });
 
     [HttpPost("runs"), EnableRateLimiting("agent")]

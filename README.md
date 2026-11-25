@@ -1,6 +1,6 @@
 # BlotterSync
 
-An offline-capable barangay incident workspace built on ASP.NET Core 8. The AI extension adds reviewed incident briefs, intake drafts, source references, tool activity and personal agent history. The original dashboard and community kiosk remain available.
+An offline-capable barangay incident workspace built on ASP.NET Core 8. Desk Chat provides conversations with an optional incident attachment, source references and tool activity. Officers can also prepare and review incident briefs and intake drafts. The original dashboard and community kiosk remain available.
 
 ## Run the development demo
 
@@ -15,13 +15,28 @@ Open [the officer workspace](http://localhost:5180/workspace.html) and choose **
 
 The runtime frontend is in `BlotterSync/wwwroot`; repository-root HTML files are retained upstream snapshots, not the runtime entrypoints. The application serves the workspace at `/`. `/index.html` retains officer login/registration, `/dashboard.html` retains the legacy dashboard, and `/kiosk.html` retains the community kiosk. The `.slnx` came from the upstream repository; the project commands above work directly with .NET 8.
 
-## Enable AI
+## Desk Chat and model setup
 
-Without a key, the app uses **Local assistance**: verbatim extraction and an administrative verification checklist. This mode performs no model calls and does not claim to summarize or infer facts.
+Open **Desk Chat** in the workspace sidebar. Choose an incident to give the conversation a source, then ask about the reported details or what to verify. Open **Tool activity** under a reply to see what the assistant read. **Recent chats** reopens saved conversations. Start a new chat to change its attached incident.
 
-Configure the server with `OPENAI_API_KEY` (or .NET user secrets `AI:ApiKey`) and restart. For example, use the normal secret manager or environment settings of your host. Never put keys in HTML, browser storage or tracked configuration. `AI:Model` defaults to `gpt-5.4-mini`; override it with `AI__Model` for another Responses API model that supports function calling and strict structured output.
+The same harness supports Desk Chat, incident briefs and intake drafts.
 
-The AI path sends the selected narrative or intake notes and category names to OpenAI. It uses `store: false`, a strict output schema and two allowlisted read-only tools. There are no shell, SQL, web or write tools. Provider errors remain visible failures rather than silently switching to local extraction. No live provider call is part of the test suite; provider behavior is exercised with fake HTTP responses.
+| Provider | Server setup |
+| --- | --- |
+| Local rules | Set `AI__Provider=local`, or run with the default configuration and no OpenAI key. Chat can look up record facts, list categories and offer intake checklists. Drafts use verbatim extraction. |
+| OpenAI | Set `AI__Provider=openai` and `OPENAI_API_KEY` or the `AI:ApiKey` development user secret. Set `AI__Model` to override `gpt-5.4-mini`. |
+| Ollama | Set `AI__Provider=ollama` and point the server at an existing Ollama instance with a tool-capable model that supports structured outputs. No OpenAI key is used. |
+
+For example, run with a Qwen model already available on your Ollama server:
+
+```sh
+AI__Provider=ollama AI__Ollama__BaseUrl=http://127.0.0.1:11434 AI__Ollama__Model=qwen3:8b \
+  dotnet run --project BlotterSync/BlotterSync.csproj --launch-profile http
+```
+
+The Ollama adapter calls only the server's chat endpoint. Start Ollama and make the chosen model available separately. See [Ollama tool calling](https://docs.ollama.com/capabilities/tool-calling) and [structured outputs](https://docs.ollama.com/capabilities/structured-outputs) for model and runtime compatibility.
+
+In model mode, the configured provider can receive the recent conversation and the data read by its tools. OpenAI requests use `store: false`. Both providers use the same read-only tools and response validation. Chats are saved in the local audit database, independently of the incident register. Both provider adapters are tested with mock HTTP responses.
 
 ## How review works
 
@@ -53,7 +68,7 @@ The retained backend cannot run in the Sites Cloudflare Worker runtime. This del
 ```sh
 dotnet test BlotterSync.Tests/BlotterSync.Tests.csproj
 node --check BlotterSync/wwwroot/workspace.js
-# With the Development demo server running:
+# With a Development demo server running in local-rules mode:
 python3 scripts/smoke-test.py
 ```
 

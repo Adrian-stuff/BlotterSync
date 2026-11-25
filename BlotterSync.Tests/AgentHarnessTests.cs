@@ -32,10 +32,21 @@ public sealed class AgentHarnessTests
             Data.BlotterRecords.Add(new BlotterRecord { RecordId = 1, DeskOfficerId = 1, CategoryId = 1, TrackingNumber = "TEST-1", Location = "Malanday hall", Narrative = "A bag was reported missing. Ownership is unverified.", Status = "Pending", IncidentDate = DateTime.UtcNow });
             Data.SaveChanges(); Tools = new(Data);
         }
-        public AgentHarness Harness(HttpMessageHandler? handler = null)
+        public AgentHarness Harness(HttpMessageHandler? handler = null, bool ollama = false)
+            => new(Store, Tools, Model(handler, ollama), NullLogger<AgentHarness>.Instance);
+
+        public ChatHarness Chat(HttpMessageHandler? handler = null, bool ollama = false)
+            => new(Store, Tools, Model(handler, ollama), NullLogger<ChatHarness>.Instance);
+
+        private static AgentModel Model(HttpMessageHandler? handler, bool ollama)
         {
-            var config = new ConfigurationBuilder().AddInMemoryCollection(handler is null ? [] : new Dictionary<string, string?> { ["AI:ApiKey"] = "test-key" }).Build();
-            return new(Store, Tools, new OpenAiAgent(new HttpClient(handler ?? new RejectNetwork()), config), NullLogger<AgentHarness>.Instance);
+            var settings = new Dictionary<string, string?>
+            {
+                ["AI:Provider"] = ollama ? "ollama" : handler is null ? "local" : "openai",
+                ["AI:ApiKey"] = handler is null || ollama ? null : "test-key"
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+            return new(new HttpClient(handler ?? new RejectNetwork()), config);
         }
         public async ValueTask DisposeAsync() { await Data.DisposeAsync(); await Store.DisposeAsync(); await dataConnection.DisposeAsync(); await auditConnection.DisposeAsync(); }
     }
@@ -64,13 +75,126 @@ public sealed class AgentHarnessTests
         await using var f = new Fixture();
         f.Store.Runs.Add(new AgentRun { OfficerId = 1, Workflow = "intake_draft", Status = "accepted" });
         await f.Store.SaveChangesAsync();
-        await f.Store.Database.ExecuteSqlRawAsync("ALTER TABLE \"Runs\" DROP COLUMN \"SourceNotes\";");
+        await f.Store.Database.ExecuteSqlRawAsync("ALTER TABLE \"Runs\" DROP COLUMN \"SourceNotes\"; DROP TABLE \"ChatThreads\";");
         f.Store.ChangeTracker.Clear();
         await f.Store.InitializeAsync();
         var run = await f.Store.Runs.AsNoTracking().SingleAsync();
         Assert.Equal("accepted", run.Status); Assert.Null(run.SourceNotes);
         await f.Store.InitializeAsync(); // Repeated startup is idempotent.
+        Assert.Empty(await f.Store.ChatThreads.ToListAsync());
     }
+    [Fact] public async Task Local_chat_preserves_follow_ups_and_tool_sources_with_officer_scope()
+    {
+        await using var f = new Fixture();
+        var chat = f.Chat();
+        var first = Assert.IsType<ChatView>(await chat.SendAsync(new() { Message = "What is the status?", RecordId = 1 }, 1, false, default));
+        Assert.Equal("local", first.Turns[0].Mode);
+        Assert.Contains("Pending", first.Turns[0].Reply);
+        Assert.Equal([1], first.Turns[0].SourceRecordIds);
+        Assert.Contains(first.Turns[0].Steps, s => s.Tool == "read_incident");
+
+        f.Store.ChangeTracker.Clear();
+        var next = Assert.IsType<ChatView>(await chat.SendAsync(new()
+            { Message = "Where was it?", ThreadId = first.Id, Version = first.Version }, 1, false, default));
+        Assert.Equal(2, next.Version);
+        Assert.Contains("Malanday hall", next.Turns[1].Reply);
+        Assert.Equal(first.Id, Assert.Single(await chat.RecentAsync(1, false, default)).Id);
+        Assert.Equal(2, (await chat.GetAsync(first.Id, 1, false, default))!.Turns.Count);
+        Assert.Null(await chat.GetAsync(first.Id, 2, true, default));
+        Assert.Empty(await chat.RecentAsync(2, true, default));
+        Assert.Null(await chat.SendAsync(new() { Message = "Try another record", RecordId = 1 }, 2, false, default));
+        await Assert.ThrowsAsync<ChatConflict>(() => chat.SendAsync(
+            new() { Message = "Outdated", ThreadId = first.Id, Version = 1 }, 1, false, default));
+
+        await f.Data.BlotterRecords.ExecuteUpdateAsync(set => set.SetProperty(r => r.DeskOfficerId, 2));
+        Assert.Null(await chat.GetAsync(first.Id, 1, false, default));
+        Assert.Empty(await chat.RecentAsync(1, false, default));
+    }
+
+    [Fact] public async Task OpenAI_chat_replays_server_owned_conversation_and_rejects_forged_citations()
+    {
+        await using var f = new Fixture();
+        var provider = new Responses(ChatFinal("Use clear language.", []), ChatFinal("I verified incident 1.", [1]));
+        var chat = f.Chat(provider);
+        var first = Assert.IsType<ChatView>(await chat.SendAsync(new() { Message = "How should I document this?" }, 1, false, default));
+        await Assert.ThrowsAsync<AgentFailure>(() => chat.SendAsync(new()
+            { Message = "Give me the record.", ThreadId = first.Id, Version = 1 }, 1, false, default));
+        using var body = JsonDocument.Parse(provider.Requests[1]);
+        var input = body.RootElement.GetProperty("input");
+        Assert.Equal("assistant", input[1].GetProperty("role").GetString());
+        Assert.Equal("Use clear language.", input[1].GetProperty("content").GetString());
+        Assert.Single(body.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal(1, (await chat.GetAsync(first.Id, 1, false, default))!.Version);
+    }
+
+    [Fact] public async Task Ollama_qwen_uses_local_endpoint_and_scoped_tool_results()
+    {
+        await using var f = new Fixture();
+        var provider = new OllamaResponses(
+            """{"done":true,"message":{"role":"assistant","tool_calls":[{"function":{"name":"read_incident","arguments":{"recordId":1}}}]}}""",
+            """{"done":true,"message":{"role":"assistant","content":"{\"reply\":\"The record is Pending.\",\"sourceRecordIds\":[1]}"}}""");
+        var result = Assert.IsType<ChatView>(await f.Chat(provider, ollama: true).SendAsync(
+            new() { Message = "What is the status?", RecordId = 1 }, 1, false, default));
+        var turn = Assert.Single(result.Turns);
+        Assert.Equal("ollama", turn.Mode);
+        Assert.Equal([1], turn.SourceRecordIds);
+        Assert.Equal(2, provider.Requests.Count);
+        using var body = JsonDocument.Parse(provider.Requests[1]);
+        Assert.Equal("qwen3:8b", body.RootElement.GetProperty("model").GetString());
+        Assert.False(body.RootElement.GetProperty("stream").GetBoolean());
+        Assert.Equal("object", body.RootElement.GetProperty("format").GetProperty("type").GetString());
+        var messages = body.RootElement.GetProperty("messages");
+        Assert.Equal("tool", messages[3].GetProperty("role").GetString());
+        Assert.Equal("read_incident", messages[3].GetProperty("tool_name").GetString());
+        Assert.Contains("TEST-1", messages[3].GetProperty("content").GetString());
+    }
+
+    [Fact] public async Task Ollama_cannot_use_the_scope_of_another_incident()
+    {
+        await using var f = new Fixture();
+        var provider = new OllamaResponses(
+            """{"done":true,"message":{"role":"assistant","tool_calls":[{"function":{"name":"read_incident","arguments":{"recordId":2}}}]}}""");
+        await Assert.ThrowsAsync<AgentFailure>(() => f.Chat(provider, ollama: true).SendAsync(
+            new() { Message = "Read a different case.", RecordId = 1 }, 1, false, default));
+        Assert.Single(provider.Requests);
+        Assert.Empty(await f.Store.ChatThreads.ToListAsync());
+    }
+
+    [Fact] public async Task Intake_drafts_also_use_the_configured_Ollama_provider()
+    {
+        await using var f = new Fixture();
+        var result = ValidResult() with { SourceRecordIds = [], Location = "" };
+        var payload = JsonSerializer.Serialize(new
+        {
+            done = true,
+            message = new { role = "assistant", content = JsonSerializer.Serialize(result, AgentJson.Options) }
+        });
+        var provider = new OllamaResponses(payload);
+        var run = await f.Harness(provider, ollama: true).RunAsync(
+            new() { Workflow = "intake_draft", Notes = "A resident reported a bag." }, 1, false, default);
+        Assert.Equal("needs_review", run.Status);
+        Assert.Equal("ollama", run.Mode);
+        Assert.Single(provider.Requests);
+    }
+
+    private static string ChatFinal(string reply, int[] sources) =>
+        JsonSerializer.Serialize(new { status = "completed", output = new[] {
+            new { type = "message", content = new[] { new { type = "output_text",
+                text = JsonSerializer.Serialize(new ChatAnswer(reply, sources), AgentJson.Options) } } }
+        } });
+
+    private sealed class OllamaResponses(params string[] responses) : HttpMessageHandler
+    {
+        public List<string> Requests { get; } = [];
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Assert.Equal("http://127.0.0.1:11434/api/chat", request.RequestUri!.ToString());
+            Assert.Null(request.Headers.Authorization);
+            Requests.Add(await request.Content!.ReadAsStringAsync(ct));
+            return new(HttpStatusCode.OK) { Content = new StringContent(responses[Requests.Count - 1], Encoding.UTF8, "application/json") };
+        }
+    }
+
     [Fact] public void Explicit_sqlite_does_not_activate_cloud_sync_from_an_environment_url()
     {
         Assert.False(BlotterSync.Sync.DatabaseConnection.IsPostgreSql("SQLite", "postgres://example.invalid/database"));

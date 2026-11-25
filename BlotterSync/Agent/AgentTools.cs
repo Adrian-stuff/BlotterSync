@@ -15,6 +15,11 @@ public sealed class AgentTools(BlotterSyncContext db)
             .Select(r => new IncidentSource(r.RecordId, r.TrackingNumber, r.Category.Name,
                 r.IncidentDate, r.Location, r.Narrative, r.Status)).SingleOrDefaultAsync(ct);
 
+    public async Task<int[]> AccessibleRecordIdsAsync(int[] ids, int officerId, bool isAdmin, CancellationToken ct)
+        => ids.Length == 0 ? [] : await db.BlotterRecords.AsNoTracking()
+            .Where(r => ids.Contains(r.RecordId) && (isAdmin || r.DeskOfficerId == officerId))
+            .Select(r => r.RecordId).ToArrayAsync(ct);
+
     public async Task<string[]> CategoriesAsync(CancellationToken ct)
         => await db.Categories.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Name).Take(100).ToArrayAsync(ct);
 
@@ -26,12 +31,14 @@ public sealed class AgentTools(BlotterSyncContext db)
         {
             if (args.RootElement.ValueKind != JsonValueKind.Object || args.RootElement.EnumerateObject().Any())
                 throw new AgentFailure("Invalid category tool arguments.");
+            var categories = await CategoriesAsync(ct);
             steps.Add(new(name, "Read the incident category directory.", DateTime.UtcNow));
-            return JsonSerializer.Serialize(await CategoriesAsync(ct), AgentJson.Options);
+            return JsonSerializer.Serialize(categories, AgentJson.Options);
         }
         if (name == "read_incident")
         {
-            if (!args.RootElement.TryGetProperty("recordId", out var property) || !property.TryGetInt32(out var id)
+            if (args.RootElement.ValueKind != JsonValueKind.Object ||
+                !args.RootElement.TryGetProperty("recordId", out var property) || property.ValueKind != JsonValueKind.Number || !property.TryGetInt32(out var id)
                 || args.RootElement.EnumerateObject().Count() != 1 || id != allowedRecordId)
                 throw new AgentFailure("The agent requested a record outside this task.");
             var record = await ReadIncidentAsync(id, officerId, isAdmin, ct)

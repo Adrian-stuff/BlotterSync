@@ -111,7 +111,9 @@ Directory.CreateDirectory(Path.GetDirectoryName(agentPath)!);
 builder.Services.AddDbContext<AgentStore>(options => options.UseSqlite(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = agentPath }.ConnectionString));
 builder.Services.AddScoped<AgentTools>();
 builder.Services.AddScoped<AgentHarness>();
-builder.Services.AddHttpClient<OpenAiAgent>(client => client.Timeout = TimeSpan.FromSeconds(55));
+builder.Services.AddScoped<ChatHarness>();
+builder.Services.AddHttpClient<AgentModel>(client => client.Timeout = TimeSpan.FromSeconds(55))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddRateLimiter(options => {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("agent", context => RateLimitPartition.GetFixedWindowLimiter(

@@ -35,3 +35,15 @@ Results contain `title`, `summary`, `suggestedCategory`, `location`, `missingInf
 The harness forces a scoped source read before summary generation. Tool calls are dispatched through `AgentTools`, which repeats authorization and task-scope checks. OpenAI receives a strict JSON schema and tools `read_incident(recordId)` and `list_categories()`. A run permits at most four model turns, six requested tool calls, 1,800 output tokens per turn, a 256 KB provider response and 60 seconds overall. Unknown tools, malformed output, unsupported references, refusals and incomplete model responses fail visibly. No automatic provider retries are made.
 
 Audit entries retain only final structured results, run metadata, concise tool activity and review decisions. Raw model responses and hidden reasoning are not stored. Original intake notes are saved as `sourceNotes` on the run for source comparison after reloading. Older runs have null sourceNotes and the UI identifies that missing snapshot explicitly. Run state resides outside the cloud-synced record schema.
+
+## Desk Chat
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/api/agent/chat` | List up to 30 recent chats for the signed-in officer. |
+| GET | `/api/agent/chat/{id}` | Return the conversation with messages, source IDs, provider mode and tool activity. |
+| POST | `/api/agent/chat` | Create a chat with `message` and optional `recordId`. Continue a chat with `message`, `threadId` and its latest `version`. |
+
+The attachment stays fixed for a conversation. The server validates current access to that incident and owns the conversation roles. Chat can read that incident and list categories. Citations must match a source read in the current reply. Replies and tool activity persist only after a successful turn. A stale version returns HTTP 409 and can be recovered by reopening the conversation. Chat shares the draft agent's model turn, tool call, concurrency and request limits. Up to four recent message pairs fit in model context, capped at 12,000 characters of history. Each saved chat holds up to 40 exchanges.
+
+Provider status reports `local` for local rules, `openai` for OpenAI, or `ollama` for the administrator-configured server. Ollama uses its native chat API with schema-constrained replies and the shared tool allowlist. Connections reports configuration, while sending a message tests availability.

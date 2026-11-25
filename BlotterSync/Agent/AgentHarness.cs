@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BlotterSync.Agent;
 
-public sealed class AgentHarness(AgentStore store, AgentTools tools, OpenAiAgent model, ILogger<AgentHarness> logger)
+public sealed class AgentHarness(AgentStore store, AgentTools tools, AgentModel model, ILogger<AgentHarness> logger)
 {
-    private static readonly SemaphoreSlim Slots = new(2, 2);
+    internal static readonly SemaphoreSlim Slots = new(2, 2);
 
     public async Task<AgentView> RunAsync(AgentRequest request, int officerId, bool isAdmin, CancellationToken ct)
     {
@@ -13,7 +13,7 @@ public sealed class AgentHarness(AgentStore store, AgentTools tools, OpenAiAgent
             throw new AgentFailure("Select an incident to summarize.");
         if (request.Workflow == "intake_draft" && (string.IsNullOrWhiteSpace(request.Notes) || request.RecordId is not null))
             throw new AgentFailure("Enter intake notes without an existing record reference.");
-        var run = new AgentRun { OfficerId = officerId, Workflow = request.Workflow, RecordId = request.RecordId, SourceNotes = request.Workflow == "intake_draft" ? request.Notes : null, Mode = model.Enabled ? "openai" : "local" };
+        var run = new AgentRun { OfficerId = officerId, Workflow = request.Workflow, RecordId = request.RecordId, SourceNotes = request.Workflow == "intake_draft" ? request.Notes : null, Mode = model.Mode };
         store.Runs.Add(run);
         await store.SaveChangesAsync(ct);
         var steps = new List<AgentStep>();

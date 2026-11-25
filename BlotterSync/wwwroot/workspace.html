@@ -18,6 +18,10 @@
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
+        <symbol id="i-chat" viewBox="0 0 24 24">
+          <path d="M20 11.5a7 7 0 0 1-7 7H5l1.6-3.2A7 7 0 1 1 20 11.5Z" />
+          <path d="M9 10h6M9 13h4" />
+        </symbol>
         <symbol id="i-grid" viewBox="0 0 24 24">
           <rect x="3" y="3" width="7" height="7" rx="1.5" />
           <rect x="14" y="3" width="7" height="7" rx="1.5" />
@@ -157,6 +161,9 @@
           <button data-nav="incidents" class="nav-button">
             <svg class="icon"><use href="#i-folder" /></svg>Incident
             register<span id="nav-count" class="nav-count">0</span>
+          </button>
+          <button data-nav="chat" class="nav-button">
+            <svg class="icon"><use href="#i-chat" /></svg>Desk Chat
           </button>
           <button data-nav="intake" class="nav-button">
             <svg class="icon"><use href="#i-spark" /></svg>Intake assistant

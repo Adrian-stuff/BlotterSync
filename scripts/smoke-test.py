@@ -45,6 +45,17 @@ assert request('/api/agent/runs/' + intake['id'], token=token)['sourceNotes'] ==
 request('/api/agent/runs/' + intake['id'] + '/review', 'POST', {'decision': 'accepted'}, token)
 request('/api/agent/runs', 'POST', {'workflow': 'unsupported'}, token, expect=400)
 request('/api/agent/runs', 'POST', {'workflow': 'intake_draft', 'notes': ''}, token, expect=400)
+request('/api/agent/chat', expect=401)
+request('/api/agent/chat', 'POST', {'message': 'List categories'}, expect=401)
+chat = request('/api/agent/chat', 'POST', {'message': 'What is the status?', 'recordId': source['recordId']}, token)
+assert chat['turns'][0]['sourceRecordIds'] == [source['recordId']]
+assert chat['turns'][0]['mode'] == 'local'
+assert any(step['tool'] == 'read_incident' for step in chat['turns'][0]['steps'])
+chat_path = '/api/agent/chat/' + chat['id']
+follow_up = request('/api/agent/chat', 'POST', {'message': 'Where was it?', 'threadId': chat['id'], 'version': chat['version']}, token)
+assert len(follow_up['turns']) == 2 and source['location'] in follow_up['turns'][1]['reply']
+assert request(chat_path, token=token)['version'] == follow_up['version']
+assert any(thread['id'] == chat['id'] for thread in request('/api/agent/chat', token=token))
 # A newly registered officer has neither access to the demo records nor its runs.
 name = 'smoke.' + uuid.uuid4().hex[:10]
 password = uuid.uuid4().hex + '!a1'
@@ -53,6 +64,10 @@ request('/api/Auth/Register', 'POST', {'username': name, 'password': password, '
 other = request('/api/Auth/Login', 'POST', {'username': name, 'password': password})['token']
 assert request('/api/BlotterRecords', token=other) == []
 assert request('/api/agent/runs', token=other) == []
+assert request('/api/agent/chat', token=other) == []
+request(chat_path, token=other, expect=404)
+request('/api/agent/chat', 'POST', {'message': 'Show incident details', 'recordId': source['recordId']}, other, expect=404)
+request('/api/agent/chat', 'POST', {'message': 'Follow up', 'threadId': chat['id'], 'version': 2}, other, expect=404)
 request('/api/BlotterRecords/' + str(source['recordId']), token=other, expect=404)
 request('/api/agent/runs/' + run['id'], token=other, expect=404)
 request('/api/agent/runs/' + run['id'] + '/review', 'POST', {'decision': 'accepted'}, other, expect=404)
@@ -64,4 +79,4 @@ created = request('/api/BlotterRecords', 'POST', {'categoryId': 1, 'location': '
 assert created['status'] == 'Pending'
 assert len(request('/api/BlotterRecords', token=other)) == 1
 assert request('/api/agent/runs/' + run['id'], token=token)['status'] == 'accepted'
-print(f'Passed {checks} API smoke checks: auth, scope isolation, drafts, immutable reviews and explicit filing.')
+print(f'Passed {checks} API smoke checks: auth, chat follow-ups and isolation, drafts, immutable reviews and explicit filing.')
